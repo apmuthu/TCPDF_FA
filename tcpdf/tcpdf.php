@@ -126,14 +126,41 @@
 /**
  * main configuration file
  */
-require_once(dirname(__FILE__).'/config/tcpdf_config.php');
+/** -------------------------------FrontAccounting 2.0  ---------------------------
+  * following changes are done for FrontAccounting 2.0 - Joe Hunt 06.08.2008
+  * 1. /config/tcpdf_config.php is not included, commented out
+  * 2. Following 3 defines instead:
+  *    if (!defined("K_PATH_FONTS"))
+  *        define ("K_PATH_FONTS", '../reporting/fonts/');
+  *    define ("K_PATH_CACHE", '../reporting/fonts/');
+  *    define("K_CELL_HEIGHT_RATIO", 1.25);
+  * 3. ./unicode_data2.php only included if unicode is set. (in class constructor)
+  *    We only use a reduced variant of unicode_data.php (unicode_data.php).af wrap the
+  *    following defines
+  *    if (!defined("K_RE_PATTERN_RTL"))
+  *    and
+  *    if (!defined("K_RE_PATTERN_ARABIC"))
+  * 4. Parameter $unicode in constructor renamed to $uni.
+  * 5. Header function renamed to Header1 (due to conflict with FrontReport Header)
+  * 6. Line 6190, SetLineWidth (cast of values to avoid problem in PHP 5.2.6
+  * 7. Line 6261. ereg replaced by preg_match (with start and end delimiter)
+  * 8. Lines 8642,9256 and 9348. split replaced by preg_split.
+  * -------------------------------------------------------------------------------
+  */
+if (!defined("K_PATH_FONTS"))
+	define ("K_PATH_FONTS", dirname(__FILE__)."/../fonts/");
+define ("K_PATH_CACHE", dirname(__FILE__)."/../fonts/");
+define("K_CELL_HEIGHT_RATIO", 1.25);
+
+//require_once(dirname(__FILE__).'/config/tcpdf_config.php');
 
 // includes some support files
 
 /**
  * unicode data
  */
-require_once(dirname(__FILE__).'/unicode_data.php');
+// only included if unicode
+//include_once(dirname(__FILE__)."/unicode_data2.php");
 
 /**
  * html colors table
@@ -1085,7 +1112,12 @@ if (!class_exists('TCPDF')) {
 		 * @param boolean $unicode TRUE means that the input text is unicode (default = true)
 		 * @param String $encoding charset encoding; default is UTF-8
 		 */
-		function TCPDF($orientation='P', $unit='mm', $format='A4', $unicode=true, $encoding="UTF-8") {
+		function TCPDF($orientation='P', $unit='mm', $format='A4', $uni=true, $encoding="UTF-8") {
+			if ($uni) // Fix for FrontAccounting
+			{
+				global $unicode, $unicode_mirror, $unicode_arlet, $laa_array, $diacritics;
+				include_once(dirname(__FILE__)."/unicode_data2.php");
+			}
 			/* Set internal character encoding to ASCII */
 			if (function_exists("mb_internal_encoding") AND mb_internal_encoding()) {
 				$this->internal_encoding = mb_internal_encoding();
@@ -1097,7 +1129,7 @@ if (!class_exists('TCPDF')) {
 			//Some checks
 			$this->_dochecks();
 			//Initialization of properties
-			$this->isunicode = $unicode;
+			$this->isunicode = $uni;
 			$this->page = 0;
 			$this->pagedim = array();
 			$this->n = 2;
@@ -1727,7 +1759,8 @@ if (!class_exists('TCPDF')) {
 		*/
 		function Error($msg) {
 			//Fatal error
-			die('<strong>TCPDF error: </strong>'.$msg);
+			display_error('<strong>TCPDF error: </strong>'.$msg);
+			exit;
 		}
 
 		/**
@@ -2012,7 +2045,7 @@ if (!class_exists('TCPDF')) {
 	 	 * This method is used to render the page header.
 	 	 * It is automatically called by AddPage() and could be overwritten in your own inherited class.
 		 */
-		function Header() {
+		function Header1() {
 			$ormargins = $this->getOriginalMargins();
 			$headerfont = $this->getHeaderFont();
 			$headerdata = $this->getHeaderData();
@@ -2097,7 +2130,7 @@ if (!class_exists('TCPDF')) {
 					$this->SetXY($this->original_lMargin, $this->header_margin);
 				}
 				$this->SetFont($this->header_font[0], $this->header_font[1], $this->header_font[2]);
-				$this->Header();
+				$this->Header1();
 				//restore position
 				if ($this->rtl) {
 					$this->SetXY($this->original_rMargin, $this->tMargin);
@@ -2573,9 +2606,9 @@ if (!class_exists('TCPDF')) {
 			if (isset($cw)) {
 				unset($cw);
 			}
-			include($this->_getfontpath().$file);
+			@include($this->_getfontpath().$file);
 			if ((!isset($type)) OR (!isset($cw))) {
-				$this->Error('Could not include font definition file');
+				$this->Error("Could not include font definition file: ".$file);
 			}
 			$i = count($this->fonts) + 1;
 			// register CID font (all styles at once)
@@ -3564,8 +3597,8 @@ if (!class_exists('TCPDF')) {
 				if ($type == "jpg") {
 					$type = "jpeg";
 				}
-				$mqr = get_magic_quotes_runtime();
-				set_magic_quotes_runtime(0);
+				$mqr = ini_get('magic_quotes_runtime');
+				ini_set('magic_quotes_runtime', 0);
 				// Specific image handlers
 				$mtd = '_parse'.$type;
 				// GD image handler function
@@ -3592,7 +3625,7 @@ if (!class_exists('TCPDF')) {
 					//If false, we cannot process image
 					return;
 				}
-				set_magic_quotes_runtime($mqr);
+				ini_set('magic_quotes_runtime', $mqr);
 				$info['i'] = count($this->images) + 1;
 				// add image to document
 				$this->images[$file] = $info;
@@ -4472,8 +4505,8 @@ if (!class_exists('TCPDF')) {
 				$this->_out('<</Type /Encoding /BaseEncoding /WinAnsiEncoding /Differences ['.$diff.']>>');
 				$this->_out('endobj');
 			}
-			$mqr = get_magic_quotes_runtime();
-			set_magic_quotes_runtime(0);
+			$mqr = ini_get('magic_quotes_runtime');
+			ini_set('magic_quotes_runtime', 0);
 			foreach($this->FontFiles as $file => $info) {
 				//Font file embedding
 				$this->_newobj();
@@ -4503,7 +4536,7 @@ if (!class_exists('TCPDF')) {
 				$this->_putstream($font);
 				$this->_out('endobj');
 			}
-			set_magic_quotes_runtime($mqr);
+			ini_set('magic_quotes_runtime', $mqr);
 			foreach($this->fonts as $k => $font) {
 				//Font objects
 				$this->fonts[$k]['n'] = $this->n + 1;
@@ -4976,7 +5009,8 @@ if (!class_exists('TCPDF')) {
 		* @access protected
 		*/
 		function _putheader() {
-			$this->_out('%PDF-'.$this->PDFVersion);
+			$this->buffer = '%PDF-'.$this->PDFVersion."\n".$this->buffer;
+//			$this->_out('%PDF-'.$this->PDFVersion);
 		}
 
 		/**
@@ -5698,7 +5732,7 @@ if (!class_exists('TCPDF')) {
 		 */
 		function unhtmlentities($text_to_convert) {
 			if (!$this->isunicode) {
-				return html_entity_decode($text_to_convert);
+				return html_entity_decode($text_to_convert, ENT_QUOTES);
 			}
 			return html_entity_decode_php4($text_to_convert);
 		}
@@ -6159,7 +6193,15 @@ if (!class_exists('TCPDF')) {
 		function SetLineWidth($width) {
 			//Set line width
 			$this->LineWidth = $width;
-			$this->linestyleWidth = sprintf('%.2f w', ($width * $this->k));
+			//$this->linestyleWidth = sprintf('%.2f w', ($width * $this->k));
+			// FrontAccounting fix
+			// My PHP 5.2.6 environment gave an "Unsupported operand types"
+			// error for the multiplication on the next line some of the
+			// time when this method is called - I debugged and sometimes
+			// the $width parameter is some sort of weird array.  I don't
+			// understand what's going on, but casting it to a (float) seems
+			// to "fix" the problem.  -Jason Maas, 2009/09/25
+			$this->linestyleWidth = sprintf('%.2f w', ((float) $width * (float) $this->k));
 			$this->_out($this->linestyleWidth);
 		}
 
@@ -6218,7 +6260,7 @@ if (!class_exists('TCPDF')) {
 			if (isset($dash)) {
 				$dash_string = "";
 				if ($dash) {
-					if (ereg("^.+,", $dash)) {
+					if (preg_match("/^.+,/", $dash)) {
 						$tab = explode(",", $dash);
 					} else {
 						$tab = array($dash);
@@ -8598,7 +8640,7 @@ if (!class_exists('TCPDF')) {
 				$this->_out(sprintf('%.3F %.3F %.3F %.3F %.3F %.3F cm', $scale_x, 0, 0, $scale_y, $x1*(1-$scale_x), $y2*(1-$scale_y)));
 			}
 			// handle pc/unix/mac line endings
-			$lines = split("\r\n|[\r\n]", $data);
+			$lines = preg_split("/\r\n|[\r\n]/", $data);
 			$u=0;
 			$cnt = count($lines);
 			for ($i=0; $i < $cnt; $i++) {
@@ -9212,7 +9254,7 @@ if (!class_exists('TCPDF')) {
 							if (isset($dom[$key]['style']['font-family'])) {
 								// font family
 								if (isset($dom[$key]['style']['font-family'])) {
-									$fontslist = split(",", strtolower($dom[$key]['style']['font-family']));
+									$fontslist = preg_split("/,/", strtolower($dom[$key]['style']['font-family']));
 									foreach($fontslist as $font) {
 										$font = trim(strtolower($font));
 										if (in_array($font, $this->fontlist)){
@@ -9304,7 +9346,7 @@ if (!class_exists('TCPDF')) {
 						if ($dom[$key]['value'] == "font") {
 							// font family
 							if (isset($dom[$key]['attribute']['face'])) {
-								$fontslist = split(",", strtolower($dom[$key]['attribute']['face']));
+								$fontslist = preg_split("/,/", strtolower($dom[$key]['attribute']['face']));
 								foreach($fontslist as $font) {
 									$font = trim(strtolower($font));
 									if (in_array($font, $this->fontlist)){
